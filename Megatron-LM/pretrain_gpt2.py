@@ -26,6 +26,7 @@ import numpy as np
 import torch
 
 import deepspeed
+from deepspeed.runtime.utils import see_memory_usage
 import deepspeed.utils.groups as groups
 
 from arguments import get_args
@@ -71,11 +72,22 @@ def get_model(args):
                       checkpoint_num_layers=args.checkpoint_num_layers,
                       parallel_output=True,
                       num_experts=args.num_experts)
-    
+    total_params = 0
     if mpu.get_data_parallel_rank() == 0:
-        print(' > number of parameters on model parallel rank {}: {}'.format(
-            mpu.get_model_parallel_rank(),
-            sum([p.nelement() for p in model.parameters()])), flush=True)
+        shared_params = 0 
+        expert_params = 0
+        for name, param in model.named_parameters():
+            if 'deepspeed_moe.experts' in name:
+                expert_params += args.expert_parallel_size * param.numel()
+            else:
+                shared_params += param.numel()
+        tparams = expert_params + shared_params
+        print(f' > number of shared parameters on model parallel rank {mpu.get_model_parallel_rank()}: {shared_params}')
+        print(f' > number of parameters in experts on model parallel rank {mpu.get_model_parallel_rank()}: {expert_params}')
+        print(f' > number of shared and expert parameters on model parallel rank {mpu.get_model_parallel_rank()}: {tparams}')
+        
+        total_params = sum([p.nelement() for p in model.parameters()])
+        print(f' > number of parameters on model parallel rank {mpu.get_model_parallel_rank()}: {total_params}')
 
     #To prevent OOM for model sizes that cannot fit in GPU memory in full precision
     if args.deepspeed and args.fp16:
@@ -372,24 +384,13 @@ def backward_step(optimizer, model, lm_loss, args, timers):
 
     return lm_loss_reduced
 
-def see_memory_usage(message, force=False):
-    if not force:
-        return
-    dist.barrier()
-    if dist.get_rank() == 0:
-        print(message)
-        print("Memory Allocated ", torch.cuda.memory_allocated()/(1024*1024*1024), "GigaBytes")
-        print("Max Memory Allocated ", torch.cuda.max_memory_allocated()/(1024*1024*1024), "GigaBytes")
-        print("Cache Allocated ", torch.cuda.memory_cached()/(1024*1024*1024), "GigaBytes")
-        print("Max cache Allocated ", torch.cuda.max_memory_cached()/(1024*1024*1024), "GigaBytes")
-
-        print(" ")
-        #input("Press Any Key To Continue ..")
-
 def train_step(data_iterator, model, optimizer, lr_scheduler,
                args, timers):
     """Single training step."""
 
+    dval=False
+
+    see_memory_usage("before forward", force=dval)
     # Forward model for one step.
     timers('forward').start()
     lm_loss = forward_step(data_iterator, model, args, timers)
@@ -397,11 +398,13 @@ def train_step(data_iterator, model, optimizer, lr_scheduler,
 
     #print_rank_0("loss is {}".format(lm_loss))
 
+    see_memory_usage("before backward", force=dval)
     # Calculate gradients, reduce across processes, and clip.
     timers('backward').start()
     lm_loss_reduced = backward_step(optimizer, model, lm_loss, args, timers)
     timers('backward').stop()
 
+    see_memory_usage("before step", force=dval)
     # Update parameters.
     skipped_iter = 0
     timers('optimizer').start()
@@ -580,6 +583,7 @@ def initialize_distributed(args):
     if args.local_rank is not None:
         device = args.local_rank
     torch.cuda.set_device(device)
+    #a = torch.zeros(int(19e9), dtype=torch.half, device=device)
     # Call the init process
     init_method = 'tcp://'
     master_ip = os.getenv('MASTER_ADDR', 'localhost')
