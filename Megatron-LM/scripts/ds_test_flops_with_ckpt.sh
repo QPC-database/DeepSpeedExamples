@@ -1,10 +1,10 @@
 #! /bin/bash
 
 # Change for multinode config
-MP_SIZE=2
+MP_SIZE=1
 NUM_WORKERS=1
 NUM_GPUS_PER_WORKER=8
-EP_SIZE=4
+EP_SIZE=1
 
 script_path=$(realpath $0)
 script_dir=$(dirname $script_path)
@@ -13,13 +13,13 @@ config_json="$script_dir/ds_flops_config_ckpt.json"
 gpt_options=" \
        --model-parallel-size ${MP_SIZE} \
        --expert-parallel-size ${EP_SIZE} \
-       --num-layers 12 \
-       --hidden-size 4096 \
+       --num-layers 24 \
+       --hidden-size 1024 \
        --num-attention-heads 16 \
        --seq-length 1024 \
        --max-position-embeddings 1024 \
        --train-iters 1000 \
-       --batch-size 2 \
+       --batch-size 1 \
        --resume-dataloader \
        --train-data synthetic_data.json \
        --lazy-loader \
@@ -33,7 +33,8 @@ gpt_options=" \
        --clip-grad 1.0 \
        --warmup .01 \
        --fp16 \
-       --num-experts 4 \
+       --vocab-size 20000 \
+       --num-experts 1 \
        --log-interval 10
        --text-key text \
        --loose-json --eval-interval 0 \

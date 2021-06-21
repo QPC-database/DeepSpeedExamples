@@ -3,8 +3,8 @@
 # Change for multinode config
 MP_SIZE=1
 NUM_WORKERS=1
-NUM_GPUS_PER_WORKER=1
-EP_SIZE=1
+NUM_GPUS_PER_WORKER=2
+EP_SIZE=2
 
 script_path=$(realpath $0)
 script_dir=$(dirname $script_path)
@@ -13,15 +13,15 @@ config_json="$script_dir/ds_flops_config.json"
 gpt_options=" \
        --model-parallel-size ${MP_SIZE} \
        --expert-parallel-size ${EP_SIZE} \
-       --num-layers 18 \
-       --hidden-size 2048 \
+       --num-layers 12 \
+       --hidden-size 3072 \
        --num-attention-heads 16 \
        --seq-length 1024 \
        --max-position-embeddings 1024 \
        --train-iters 1000 \
-       --batch-size 4 \
+       --batch-size 16 \
        --resume-dataloader \
-       --train-data synthetic_data.json \
+       --train-data /home/amawa/megatron-data/webtext/data.json \
        --lazy-loader \
        --tokenizer-type GPT2BPETokenizer \
        --split 949,50,1 \
@@ -34,11 +34,11 @@ gpt_options=" \
        --warmup .01 \
        --fp16 \
        --log-interval 50 \
-       --num-experts 1 \
+       --num-experts 2 \
        --text-key text \
        --loose-json --eval-interval 0 \
-       --checkpoint-activations \
-       --deepspeed-activation-checkpointing 
+      --checkpoint-activations \
+             --deepspeed-activation-checkpointing \
 "
 
 

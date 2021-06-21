@@ -1,8 +1,8 @@
 #! /bin/bash
 
 # Change for multinode config
-MP_SIZE=2
-EP_SIZE=2
+MP_SIZE=1
+EP_SIZE=1
 
 NUM_WORKERS=1
 NUM_GPUS_PER_WORKER=8
@@ -14,8 +14,8 @@ config_json="$script_dir/ds_zero2_config.json"
 gpt_options=" \
        --model-parallel-size ${MP_SIZE} \
        --expert-parallel-size ${EP_SIZE} \
-       --num-layers 4 \
-       --hidden-size 512 \
+       --num-layers 12 \
+       --hidden-size 2048 \
        --num-attention-heads 16 \
        --batch-size 8 \
        --seq-length 1024 \
@@ -34,8 +34,8 @@ gpt_options=" \
        --clip-grad 1.0 \
        --warmup .01 \
        --fp16 \
-       --num-experts 16
-       --log-interval 10
+       --num-experts 1
+       --log-interval 100
        --text-key text \
        --loose-json
 "
@@ -51,7 +51,7 @@ gpt_options="${gpt_options}
 "
 
 
-run_cmd="LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libnccl.so.2.8.3 deepspeed --num_nodes ${NUM_WORKERS} --num_gpus ${NUM_GPUS_PER_WORKER} pretrain_gpt2.py $@ ${gpt_options}"
+run_cmd="deepspeed --num_nodes ${NUM_WORKERS} --num_gpus ${NUM_GPUS_PER_WORKER} pretrain_gpt2.py $@ ${gpt_options}"
 echo ${run_cmd}
 eval ${run_cmd}
 

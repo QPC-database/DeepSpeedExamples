@@ -327,8 +327,8 @@ def forward_step(data_iterator, model, args, timers):
     
     #print(f"Moe Losses: {moe_losses}, actual loss {loss}")
     moe_loss = sum(moe_losses)
-    #if torch.distributed.get_rank() == 0:
-    #    print(f"Moe Loss {moe_loss}")
+    if torch.distributed.get_rank() == 0:
+        print(f"---> Moe Loss {moe_loss}, actual loss {loss}")
     loss = loss + moe_loss
     
     return loss

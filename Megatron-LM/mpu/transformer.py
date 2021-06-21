@@ -19,7 +19,8 @@ import math
 
 import torch
 import torch.nn.init as init
-from apex.normalization.fused_layer_norm import FusedLayerNorm as LayerNorm
+#from apex.normalization.fused_layer_norm import FusedLayerNorm as LayerNorm
+from torch.nn import LayerNorm
 
 from .initialize import get_model_parallel_world_size
 from .layers import ColumnParallelLinear
@@ -191,13 +192,14 @@ class GPT2ParallelMLP(torch.nn.Module):
         # Set output layer initialization if not provided.
         if output_layer_init_method is None:
             output_layer_init_method = init_method
+        mul = 2
         # Project to 4h.
-        self.dense_h_to_4h = ColumnParallelLinear(hidden_size, 4*hidden_size,
+        self.dense_h_to_4h = ColumnParallelLinear(hidden_size, mul*hidden_size,
                                                   gather_output=False,
                                                   init_method=init_method)
         # Project back to h.
         self.dense_4h_to_h = RowParallelLinear(
-            4*hidden_size,
+            mul*hidden_size,
             hidden_size,
             input_is_parallel=True,
             init_method=output_layer_init_method)
@@ -285,7 +287,7 @@ class GPT2ParallelTransformerLayer(torch.nn.Module):
         else:
             # Use the DeepSpeed API to use MoE layer and experts.
             # -- sharding, comm. and parameter handling will be done inside DeepSpeed 
-            self.mlp = MoE(hidden_size, output_dropout_prob, GPT2ParallelMLP(hidden_size, output_dropout_prob, init_method, output_layer_init_method=output_layer_init_method), num_experts=self.num_experts)
+            self.mlp = MoE(hidden_size, output_dropout_prob, GPT2ParallelMLP(hidden_size, output_dropout_prob, init_method, output_layer_init_method=output_layer_init_method), num_experts=self.num_experts, k=1)
 
     # forward
     def forward(self, hidden_states, ltor_mask):
@@ -392,7 +394,7 @@ class GPT2ParallelTransformer(torch.nn.Module):
                 layernorm_epsilon,
                 unscaled_init_method(init_method_std),
                 output_layer_init_method=output_layer_init_method,
-                num_experts=num_experts if i % 2 == 0 else 1)
+                num_experts=num_experts)# if i % 2 == 0 else 1)
 
         # Transformer layers.
         self.layers = torch.nn.ModuleList(
